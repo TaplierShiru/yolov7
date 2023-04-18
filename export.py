@@ -10,21 +10,31 @@ import torch.nn as nn
 from torch.utils.mobile_optimizer import optimize_for_mobile
 
 import models
-from models.experimental import attempt_load, End2End
+from models.experimental import attempt_load, End2End, YOLOv7Full
 from utils.activations import Hardswish, SiLU
 from utils.general import set_logging, check_img_size
 from utils.torch_utils import select_device
 from utils.add_nms import RegisterNMS
+
+# PR where can be found notebooks for Onnx and TensorRT conversation:
+#   https://github.com/WongKinYiu/yolov7/pull/329/files#diff-3895aa6fafd7b8f2456955989c7bd62bfb0f12995efcf26041300ec6bd751608
+# Notebooks from PR above:
+# Onnx : 
+#  https://github.com/triple-Mu/yolov7/blob/1c8c7a5ec8e91f314908cb2e5a32bd5f58e83fb2/YOLOv7-Dynamic-Batch-ONNXRUNTIME.ipynb
+# TensorRT : 
+#  https://github.com/triple-Mu/yolov7/blob/1c8c7a5ec8e91f314908cb2e5a32bd5f58e83fb2/YOLOv7-Dynamic-Batch-TENSORRT.ipynb
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, default='./yolor-csp-c.pt', help='weights path')
     parser.add_argument('--img-size', nargs='+', type=int, default=[640, 640], help='image size')  # height, width
     parser.add_argument('--batch-size', type=int, default=1, help='batch size')
+    parser.add_argument('--dynamic-img', action='store_true', help='dynamic ONNX axes')
     parser.add_argument('--dynamic', action='store_true', help='dynamic ONNX axes')
     parser.add_argument('--dynamic-batch', action='store_true', help='dynamic batch onnx for tensorrt and onnx-runtime')
     parser.add_argument('--grid', action='store_true', help='export Detect() layer grid')
     parser.add_argument('--end2end', action='store_true', help='export end2end onnx')
+    parser.add_argument('--full-graph', action='store_true', help='export model to full')
     parser.add_argument('--max-wh', type=int, default=None, help='None for tensorrt nms, int value for onnx-runtime nms')
     parser.add_argument('--topk-all', type=int, default=100, help='topk objects for every images')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='iou threshold for NMS')
@@ -143,6 +153,13 @@ if __name__ == '__main__':
                     'output': {0: 'batch'},
                 }
             dynamic_axes.update(output_axes)
+        if opt.dynamic_img:
+            if dynamic_axes is None:
+                dynamic_axes = {}
+            if opt.dynamic_batch:
+                dynamic_axes.update({'images': {0: 'batch', 2: 'height', 3: 'width'}})
+            else:
+                dynamic_axes.update({'images': {2: 'height', 3: 'width'}})
         if opt.grid:
             if opt.end2end:
                 print('\nStarting export end2end onnx model for %s...' % 'TensorRT' if opt.max_wh is None else 'onnxruntime')
@@ -153,9 +170,13 @@ if __name__ == '__main__':
                               opt.batch_size, opt.topk_all, opt.batch_size, opt.topk_all]
                 else:
                     output_names = ['output']
+                if opt.full_graph:
+                    print('Starting export to full graph...')
+                    # TODO: Fixed shape needed for TensorRT, but in case of ONNX? Need test it
+                    model = YOLOv7Full(model, fixed_shape=opt.img_size)
             else:
                 model.model[-1].concat = True
-
+        # opset_version=12
         torch.onnx.export(model, img, f, verbose=False, opset_version=12, input_names=['images'],
                           output_names=output_names,
                           dynamic_axes=dynamic_axes)
