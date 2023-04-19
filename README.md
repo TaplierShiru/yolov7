@@ -159,11 +159,98 @@ python export.py --weights yolov7-tiny.pt --grid --end2end --simplify \
 
 **Pytorch to TensorRT with NMS (and inference)** <a href="https://colab.research.google.com/github/WongKinYiu/yolov7/blob/main/tools/YOLOv7trt.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"></a>
 
+[*Notebook with examples*](./tools/YOLOv7trt-examples.ipynb)
+
 ```shell
 wget https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-tiny.pt
 python export.py --weights ./yolov7-tiny.pt --grid --end2end --simplify --topk-all 100 --iou-thres 0.65 --conf-thres 0.35 --img-size 640 640
-git clone https://github.com/Linaom1214/tensorrt-python.git
+git clone https://github.com/TaplierShiru/TensorRT-For-YOLO-Series.git
 python ./tensorrt-python/export.py -o yolov7-tiny.onnx -e yolov7-tiny-nms.trt -p fp16
+```
+
+**Pytorch to TensorRT with NMS (and inference) with certain batch size (as example 16)**
+
+```shell
+wget https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-tiny.pt
+python export.py --weights ./yolov7-tiny.pt \
+        --grid --end2end --simplify --dynamic-batch \
+        --topk-all 100 --iou-thres 0.65 --conf-thres 0.3 \
+        --img-size 640 640
+git clone https://github.com/TaplierShiru/TensorRT-For-YOLO-Series.git
+python ./tensorrt-python/export.py -o yolov7-tiny.onnx -e yolov7-tiny-16-nms.trt -p fp16 --batch-size 16
+```
+
+Why here use `dynamic-batch` and not field `batch-size`? It seems that if batch size bigger than 16, when convertion via `export.py` will be CPU and memory entensive. So, its better to create dynamic batch, and when via export in tensorrt - freeze it as 16.
+
+TODO: Which approuch is better compare to final model speed?
+
+**Use INT8 convertaion via TensorRT git. Example for export above**
+
+```shell
+wget https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-tiny.pt
+python export.py --weights ./yolov7-tiny.pt \
+        --grid --end2end --simplify --dynamic-batch \
+        --topk-all 100 --iou-thres 0.65 --conf-thres 0.3 \
+        --img-size 640 640
+git clone https://github.com/TaplierShiru/TensorRT-For-YOLO-Series.git
+python export.py -o ./yolov7-tiny.onnx -e ./yolov7_16_int8.trt \
+    -p int8 --batch-size 16 --calib_input /path/to/folder/with-images \
+    --calib_batch_size 16
+```
+
+About it more info can be found in [this repo](https://github.com/TaplierShiru/TensorRT-For-YOLO-Series.git).
+
+
+**Pytorch to TensorRT with dynamic batch size**
+
+```shell
+wget https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-tiny.pt
+python export.py --weights ./yolov7-tiny.pt \
+        --grid --end2end --simplify --dynamic-batch \
+        --topk-all 100 --iou-thres 0.65 --conf-thres 0.3 \
+        --img-size 640 640
+git clone https://github.com/TaplierShiru/TensorRT-For-YOLO-Series.git
+python export.py -o ./yolov7-tiny.onnx \
+    -e ./yolov7-tiny.trt -p fp16 \
+    --batch-size 1 2 4
+```
+
+In this example, we must provide minimum/avg/maximum batch sized of the model. 
+
+NOTICE! It seems that TRT tries to create multiple graphs/models for each batch-size (from worse to best case) because of that memory consumption for GPU is ***huge***. Its better to create model only for single batch-size.
+
+**Pytorch to TensorRT with dynamic input image**
+
+```shell
+wget https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-tiny.pt
+python export.py --weights ./yolov7-tiny.pt \
+        --grid --end2end --simplify --dynamic-batch \
+        --topk-all 100 --iou-thres 0.65 --conf-thres 0.3 \
+        --img-size 640 640 --dynamic-img
+git clone https://github.com/TaplierShiru/TensorRT-For-YOLO-Series.git
+python export.py -o ./yolov7-tiny.onnx \
+    -e ./yolov7-tiny.trt -p fp16 \
+    --possible-inputs 240 320 640
+```
+
+In this example, we must provide minimum/avg/maximum image sizes of the model. For more details about this refer to [this repo](https://github.com/TaplierShiru/TensorRT-For-YOLO-Series.git).
+
+NOTICE! The main problem here is the same as for dynamic batch-size. ***Huge*** Memory consumption compare to methods with static inputs. 
+
+Also, from two methods above, we could insert three same values (as `--possible-inputs 640 --batch-size 4`) to create trt model with static input. This approuch is better from memory point of view.
+
+**Pytorch to TensorRT with inserted preprocess pipeline**
+
+```shell 
+wget https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-tiny.pt
+python export.py --weights ./yolov7-tiny.pt \
+        --grid --end2end --simplify --dynamic-batch --dynamic \
+        --topk-all 100 --iou-thres 0.65 --conf-thres 0.3 \
+        --img-size 640 640 --full-graph --dynamic-img
+git clone https://github.com/TaplierShiru/TensorRT-For-YOLO-Series.git
+python export.py -o ./yolov7-tiny.onnx \
+    -e ./yolov7-tiny-16-1080-1920.trt -p fp16 \
+    --batch-size 16 --possible-inputs 1080 1920
 ```
 
 **Pytorch to TensorRT another way** <a href="https://colab.research.google.com/gist/AlexeyAB/fcb47ae544cf284eb24d8ad8e880d45c/yolov7trtlinaom.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"></a> <details><summary> <b>Expand</b> </summary>

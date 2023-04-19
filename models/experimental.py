@@ -324,10 +324,6 @@ class YOLOv7Full(nn.Module):
             fill_color=fill_color,
             is_trt_mode=self.is_trt_mode,
         )
-        # self.transform.to(self.model.device)
-
-        # used only on torchscript mode
-        self._has_warned = False
 
     def forward(
         self,
@@ -341,26 +337,16 @@ class YOLOv7Full(nn.Module):
 
         # Transform the input
         transformed_inputs = self.transform(inputs)
-        print(f'!!!!!!!!!!!!!!!!! inputs={transformed_inputs.shape}')
         # Compute the detections
         result = self.model(transformed_inputs)
-        print(f'!!!!!!!!!!!!!!!!!!!!!! result from model ({len(result)})= {result}')
 
         if torchvision._is_tracing():
             im_shape = _get_shape_onnx(transformed_inputs)
         else:
             im_shape = torch.tensor(transformed_inputs.shape[-2:])
-
         detections = self.transform.postprocess(result, im_shape, original_image_size)
         
-        # TODO: Remove if-else
-        if torch.jit.is_scripting():
-            if not self._has_warned:
-                warnings.warn("YOLOv5 always returns a (Losses, Detections) tuple in scripting.")
-                self._has_warned = True
-            return detections
-        else:
-            return detections
+        return detections
 
     @torch.no_grad()
     def predict(self, x: Any, image_loader: Optional[Callable] = None) -> List[Dict[str, torch.Tensor]]:
