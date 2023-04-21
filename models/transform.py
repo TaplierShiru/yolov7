@@ -96,6 +96,7 @@ class YOLOTransform(nn.Module):
         self.size_divisible = size_divisible
         self.fixed_shape = fixed_shape
         self.fill_color = fill_color / 255
+        # TODO: Not tesnted is_trt_mode equal to False inside onnx - not sure if it will proper work.
         self.is_trt_mode = is_trt_mode
         
     def forward(
@@ -110,7 +111,7 @@ class YOLOTransform(nn.Module):
                 will be a 4-dim `Tensor` in that case. Check out the belows link for more details:
                 https://github.com/zhiqwang/yolov5-rt-stack/pull/308#pullrequestreview-878689796
         Returns:
-            result (NestedTensor): preprocessed image for the yolo model.
+            result (Tensor): preprocessed image for the yolo model.
             
         """
         images = self.resize(images)
@@ -231,18 +232,18 @@ class YOLOTransform(nn.Module):
         image_shapes: Tensor,
         original_image_size: Tuple[int, int],
     ) -> List[Dict[str, Tensor]]:
-        # TODO: If not is_trt_mode - only batch equal to 1 is possible
+        # TODO: Seems like If not is_trt_mode - only batch equal to 1 is possible.
         if self.is_trt_mode:
             boxes = result[1]
         else:
-            boxes = result[:, :, :4] # TODO: Its should be 1:5 ? Right???
+            boxes = result[:, :, 1:5] # TODO: Not sure in this slice
         # We assume that all input images have equal size
         boxes = scale_coords_batch(boxes, image_shapes, original_image_size)
 
         if self.is_trt_mode:
             result = (result[0], boxes, *result[2:])
         else:
-            result[:, :, :4] = boxes  # TODO: Its should be 1:5 ? Right???
+            result[:, :, 1:5] = boxes  # TODO: Not sure in this slice
         return result
 
     def __repr__(self):

@@ -253,7 +253,7 @@ python export.py -o ./yolov7-tiny.onnx \
     --batch-size 16 --possible-inputs 1080 1920
 ```
 
-Only dynamic image size supported with full graph pipeline. If you want freeze input size, just change `--possible-inputs` when creating trt model.
+Only dynamic image size supported with full graph pipeline. If you want freeze input size, just change `--possible-inputs` when creating trt model. With this setup calibration (int8) can't work properly, because there is some operation inside preprocess pipeline which break calibration.
 
 **Pytorch to TensorRT another way** <a href="https://colab.research.google.com/gist/AlexeyAB/fcb47ae544cf284eb24d8ad8e880d45c/yolov7trtlinaom.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"></a> <details><summary> <b>Expand</b> </summary>
 
